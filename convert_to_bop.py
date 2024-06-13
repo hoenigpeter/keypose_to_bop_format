@@ -108,12 +108,16 @@ def convert_dataset(input_folder, output_folder, depth_type, copy_images, mesh, 
     print(f"Converting dataset from {input_folder} to {output_folder}...")
     with tqdm(total=total_files, desc="Processing files", unit="file") as pbar:
         for subfolder in subfolders:
-            for image_id in range(10000):  # Assuming there won't be more than 10,000 images
+            for image_id in range(80):  # Assuming there won't be more than 10,000 images
                 image_id_str = f"{image_id:06d}"
                 
                 # Process left image
                 pbtxt_file_left = subfolder / f"{image_id_str}_L.pbtxt"
-                if pbtxt_file_left.exists():
+                rgb_src_file = subfolder / f"{image_id_str}_L.png"
+                depth_ext = 'Do' if depth_type == 'opaque' else 'Dt'
+                depth_src_file = subfolder / f"{image_id_str}_{depth_ext}.exr"
+
+                if pbtxt_file_left.exists() and rgb_src_file.exists() and depth_src_file.exists():
 
                     targs_pb = utils.read_target_pb(pbtxt_file_left)
 
@@ -140,29 +144,27 @@ def convert_dataset(input_folder, output_folder, depth_type, copy_images, mesh, 
 
                     if copy_images:
                         # Copy left image files
-                        src_file = subfolder / f"{image_id_str}_L.png"
-                        if src_file.exists():
-                            dest_file = rgb_folder / f"{image_counter:06d}.png"
-                            shutil.copy(src_file, dest_file)
+                        dest_file = rgb_folder / f"{image_counter:06d}.png"
+                        shutil.copy(rgb_src_file, dest_file)
 
-                        # Copy and convert depth file
-                        depth_ext = 'Do' if depth_type == 'opaque' else 'Dt'
-                        src_file = subfolder / f"{image_id_str}_{depth_ext}.exr"
-                        if src_file.exists():
-                            # Read the EXR file
-                            _, _, channel_data = read_exr(str(src_file))
+                        # Read the EXR file
+                        _, _, channel_data = read_exr(str(depth_src_file))
 
-                            depth_image = channel_data['D'] * 1000
-                            assert depth_image is not None, 'Cannot open %s' % str(src_file)
+                        depth_image = channel_data['D'] * 1000
 
-                            if depth_image is None:
-                                print(f"Warning: Depth image {src_file} could not be read. Skipping.")
-                            else:
-                                dest_file = depth_folder / f"{image_counter:06d}.png"
-                                save_depth(dest_file, depth_image)
+                        if depth_image is None:
+                            print(f"Warning: Depth image {src_file} could not be read. Skipping.")
+                        else:
+                            dest_file = depth_folder / f"{image_counter:06d}.png"
+                            print(dest_file)
+                            save_depth(dest_file, depth_image)
 
                     image_counter += 1
                     pbar.update(1)
+                else:
+                    print("---------------------------")
+                    print(image_counter)
+                    print("----------------------------")
 
     with open(output_folder / 'scene_gt.json', 'w') as f:
         json.dump(scene_gt, f, indent=4)
@@ -186,7 +188,9 @@ if __name__ == "__main__":
     print(data_folders)
     print(output_dir)
 
-    for obj_id, obj_name in enumerate(data_folders, start=1):
+    data_folders = ['mug_4', 'mug_5', 'mug_6', 'tree_0']
+
+    for obj_id, obj_name in enumerate(data_folders, start=12):
 
         print("obj_id: ", obj_id)
         print("obj_name: ", obj_name)
